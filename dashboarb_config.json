@@ -1,7 +1,0 @@
-{
-    "appConfig": {
-        "masterFolder": "/root/SABot",
-        "tradeFile": "trade_operations.json",
-        "pnlLookback": 30
-    }
-}
