@@ -273,7 +273,7 @@ def plot_balance(df):
         )
     )
     sharpe.update_layout(
-        title="Annualized Sharpe Ratio",
+        title="Annualized Sharpe",
         xaxis_title="Datetime",
         yaxis_title="Sharpe Ratio",
     )
@@ -352,10 +352,10 @@ def run_dash():
             dbc.ModalBody(
                 [
                     dcc.Graph(
-                        figure=balance, style={"width": "90%"}
+                        id="balance-graph", style={"width": "90%"}
                     ),  # Adjust width here
                     dcc.Graph(
-                        figure=sharpe, style={"width": "90%"}
+                        id="sharpe-graph", style={"width": "90%"}
                     ),  # Adjust width here
                 ]
             ),
@@ -369,6 +369,7 @@ def run_dash():
     # APP LAYOUT AND CALLBACKS
     ##########################
     # Define the callback to toggle the modal visibility
+# Define the callback to toggle the modal visibility
     @app.callback(
         dash.dependencies.Output("modal", "is_open"),
         [
@@ -381,6 +382,21 @@ def run_dash():
         if open_clicks or close_clicks:
             return not is_open
         return is_open
+
+    # Define the callback to update the modal's content
+    @app.callback(
+        [
+            dash.dependencies.Output("balance-graph", "figure"),
+            dash.dependencies.Output("sharpe-graph", "figure"),
+        ],
+        [dash.dependencies.Input("modal", "is_open")],
+    )
+    def update_modal_content(is_open):
+        if is_open:
+            df = handle_balance_csv()
+            balance, sharpe = plot_balance(df)
+            return balance, sharpe
+        return dash.no_update, dash.no_update
 
     img = "assets/logo.png"
     app.layout = html.Div(
@@ -509,5 +525,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
+    print('Starting DashboarB 0.2.1')
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
