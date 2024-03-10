@@ -305,6 +305,7 @@ def plot_balance(df, in_out):
             rangeslider=dict(visible=True),
             showticklabels=False,
         ),
+        yaxis=dict(fixedrange=False),
         height=400,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
@@ -365,16 +366,9 @@ def plot_balance(df, in_out):
         title="Annualized Sharpe",
         xaxis_title="Datetime",
         yaxis_title="Sharpe Ratio",
-    )
-
-    # Move the key to the top of the graph under the title
-    sharpe.update_layout(
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-    )
-
-    # Add range slider to figure 2, hide x-axis labels, and set height, margin, and template
-    sharpe.update_layout(
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         xaxis=dict(rangeslider=dict(visible=True), showticklabels=False),
+        yaxis=dict(fixedrange=False),
         height=400,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
@@ -641,6 +635,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.3.0")
+    print("Starting DashboarB 0.3.1")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
