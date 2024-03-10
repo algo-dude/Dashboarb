@@ -1,6 +1,7 @@
 import os
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.figure_factory as ff
 from plotly.subplots import make_subplots
 from dash import dcc, html, Dash
 import pandas as pd
@@ -186,31 +187,42 @@ def get_json_files_list(name):
 def get_totalRoe_dict(lookback=None):
     totalRoe_dict = {}
     for folder in get_json_files_list(name=dc.tradeFile):
-        df, buy_df, sell_df = handle_json_trade_output(folder)
-        sell_df["totalRoe"] = sell_df["totalRoe"].astype(float)
-        if lookback:
-            sell_df["datetime"] = pd.to_datetime(
-                sell_df.index, format="%d/%m/%Y-%H:%M:%S:%f"
+        print("getting json file from folder:", folder)
+        try:
+            df, buy_df, sell_df = handle_json_trade_output(folder)
+            sell_df["totalRoe"] = sell_df["totalRoe"].astype(float)
+            if lookback:
+                sell_df["datetime"] = pd.to_datetime(
+                    sell_df.index, format="%d/%m/%Y-%H:%M:%S:%f"
+                )
+                sell_df = sell_df[
+                    sell_df["datetime"]
+                    > datetime.datetime.now() - datetime.timedelta(days=lookback)
+                ]
+            sell_df["tradeProfit"] = (
+                (sell_df["sellPrice"] + sell_df["buyPrice"])
+                / 2
+                * sell_df["amount"]
+                * sell_df["totalRoe"]
+                / 100
             )
-            sell_df = sell_df[
-                sell_df["datetime"]
-                > datetime.datetime.now() - datetime.timedelta(days=lookback)
-            ]
-        sell_df["tradeProfit"] = (
-            (sell_df["sellPrice"] + sell_df["buyPrice"])
-            / 2
-            * sell_df["amount"]
-            * sell_df["totalRoe"]
-            / 100
-        )
-        # Adjust the below line depending on folder structure
-        # print(folder)
-        totalRoe_dict[folder.split("_")[1].split("/")[0]] = sell_df["tradeProfit"].sum()
+            # Adjust the below line depending on folder structure
+            # print(folder)
+            totalRoe_dict[folder.split("_")[1].split("/")[0]] = sell_df[
+                "tradeProfit"
+            ].sum()
+        except Exception as e:
+            print(
+                "Error in get_totalRoe_dict, likely a problem with trade_operations of folder:",
+                folder,
+            )
+            continue
     return totalRoe_dict
 
 
 def handle_balance_csv():
     path = dc.masterFolder + "balance.csv"
+    in_out_table = handle_in_out_csv()
     df = pd.read_csv(path)
     df.columns = df.columns.str.strip()
 
@@ -221,6 +233,25 @@ def handle_balance_csv():
 
     # Calculate rolling one day sharpe ratio in df from total_usdt
     df["daily_return"] = df["total_usdt"].pct_change()
+
+    # in_out_table['datetime'] = pd.to_datetime(in_out_table['datetime'], format='%Y/%m/%d %H:%M:%S')
+    df["datetime"] = pd.to_datetime(df["datetime"], format="%d/%m/%Y %H:%M:%S")
+
+    in_out_table["datetime"] = in_out_table["datetime"].dt.ceil("h")
+    df["datetime"] = df["datetime"].dt.floor("h")
+
+    ## TODO - Need to have a solution for sharpe ratio when deposit and withdraws are made
+    # Drop all rows that have a datetime in in_out_table
+    # df = df[~df["datetime"].isin(in_out_table["datetime"])]
+
+    df["datetime"] = pd.to_datetime(df["datetime"], format="%Y/%m/%D %H:%M:%S")
+
+    # If in_out_table has a datetime that is in df, change the df['daily_return'] to the average of the prev and next value
+    df["daily_return"] = df["daily_return"].where(
+        ~df["datetime"].isin(in_out_table["datetime"]),
+        (df["daily_return"].shift(1) + df["daily_return"].shift(-1)) / 2,
+    )
+
     # Calculate rolling single day Sharpe ratio - 24 hours
     df["sharpe_ratio"] = (
         df["daily_return"].rolling(window=24).mean()
@@ -231,20 +262,45 @@ def handle_balance_csv():
     # MA168 of sharpe_ratio
     df["sharpe_ratio_MA168"] = df["sharpe_ratio"].rolling(window=168).mean()
 
+    # Free balance percent to plot alongside balance
+    df["free_pct"] = (df["spot_margin"] + df["future_margin"]) / (
+        df["spot_usdt"] + df["future_usdt"]
+    )
+
     return df
 
 
-def plot_balance(df):
+def handle_in_out_csv():
+    path = dc.masterFolder + "in_out.csv"
+    df = pd.read_csv(path)
+    df.columns = df.columns.str.strip()
+    df["datetime"] = pd.to_datetime(df["datetime"], format="%Y/%m/%d %H:%M:%S")
+
+    return df
+
+
+def plot_balance(df, in_out):
 
     # Plot the balance
     balance = go.Figure()
+
+    # Add total_usdt trace
     balance.add_trace(
         go.Scatter(x=df["datetime"], y=df["total_usdt"], mode="lines", name="USDT")
     )
-    balance.update_layout(title="Balance", xaxis_title="Datetime", yaxis_title="USDT")
 
-    # Add range slider to figure 1, hide x-axis labels, and set height, margin, and template
+    # TODO - This is too cluttered.  Unsure if we want it anywhere.  Maybe in another modal.
+    # Add free_pct trace
+    # balance.add_trace(
+    #     go.Scatter(x=df["datetime"], y=df["free_pct"].round(2), mode="lines", name="Free %", yaxis="y2")
+    # )
+    # balance.data[1].update(opacity=0.1)
+
+    # Update layout
     balance.update_layout(
+        title="Balance",
+        xaxis_title="Datetime",
+        yaxis_title="USDT",
         xaxis=dict(
             rangeslider=dict(visible=True),
             showticklabels=False,
@@ -252,6 +308,39 @@ def plot_balance(df):
         height=400,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
+    )
+
+    # This makes the bullet show on the preceeding hour before the balance change
+    in_out["datetime"] = in_out["datetime"].dt.floor("h")
+
+    # Add red dots to the balance graph for every datetime in in_out
+    for date in in_out["datetime"]:
+        balance.add_trace(
+            go.Scatter(
+                x=[date],
+                y=[df.loc[df["datetime"] == date, "total_usdt"].iloc[0]],
+                mode="markers",
+                marker=dict(color="red"),
+                showlegend=False,
+                name="IN/OUT",
+            )
+        )
+
+    # Add legend for the IN/OUT red dots
+    balance.add_trace(
+        go.Scatter(
+            x=[None],
+            y=[None],
+            mode="markers",
+            marker=dict(color="red"),
+            showlegend=True,
+            name="IN/OUT",
+        )
+    )
+
+    # Move the key to the top of the graph under the title
+    balance.update_layout(
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
 
     # Plot the sharpe ratio
@@ -291,7 +380,13 @@ def plot_balance(df):
         template="plotly_dark",
     )
 
-    return balance, sharpe
+    # Deposit / Withdraw table
+    in_out = ff.create_table(in_out)
+    in_out.update_layout(
+        template="plotly_dark",
+    )
+
+    return balance, sharpe, in_out
 
 
 def run_dash():
@@ -344,19 +439,38 @@ def run_dash():
 
     # Create the balance and sharpe ratio modal and plot
     df = handle_balance_csv()
-    balance, sharpe = plot_balance(df)
+    in_out = handle_in_out_csv()
+    balance, sharpe, in_out_table = plot_balance(df, in_out)
 
     modal = dbc.Modal(
         [
             dbc.ModalHeader("Details"),
             dbc.ModalBody(
                 [
-                    dcc.Graph(
-                        id="balance-graph", style={"width": "90%"}
-                    ),  # Adjust width here
-                    dcc.Graph(
-                        id="sharpe-graph", style={"width": "90%"}
-                    ),  # Adjust width here
+                    html.Div(
+                        [
+                            dcc.Graph(id="balance-graph", style={"width": "90%"}),
+                            dcc.Graph(id="sharpe-graph", style={"width": "90%"}),
+                        ],
+                        style={"margin-bottom": "20px"},
+                    ),
+                    # Add text here
+                    html.Div(
+                        [
+                            html.P("Deposits and Withdrawals"),
+                        ],
+                        style={
+                            "margin-bottom": "20px",
+                            "color": "white",
+                        },  # Adjust color as needed
+                    ),
+                    # Add the 'in_out' table
+                    html.Div(
+                        [
+                            dcc.Graph(id="in_out-table", style={"width": "90%"}),
+                        ],
+                        style={"margin-bottom": "20px"},
+                    ),
                 ]
             ),
             dbc.ModalFooter(dbc.Button("Close", id="close-modal", className="ml-auto")),
@@ -369,7 +483,6 @@ def run_dash():
     # APP LAYOUT AND CALLBACKS
     ##########################
     # Define the callback to toggle the modal visibility
-# Define the callback to toggle the modal visibility
     @app.callback(
         dash.dependencies.Output("modal", "is_open"),
         [
@@ -388,15 +501,17 @@ def run_dash():
         [
             dash.dependencies.Output("balance-graph", "figure"),
             dash.dependencies.Output("sharpe-graph", "figure"),
+            dash.dependencies.Output("in_out-table", "figure"),
         ],
         [dash.dependencies.Input("modal", "is_open")],
     )
     def update_modal_content(is_open):
         if is_open:
             df = handle_balance_csv()
-            balance, sharpe = plot_balance(df)
-            return balance, sharpe
-        return dash.no_update, dash.no_update
+            in_out = handle_in_out_csv()
+            balance, sharpe, in_out_table = plot_balance(df, in_out)
+            return balance, sharpe, in_out_table
+        return dash.no_update, dash.no_update, dash.no_update
 
     img = "assets/logo.png"
     app.layout = html.Div(
@@ -448,6 +563,7 @@ def run_dash():
         ]
     )
 
+    # Folder selection callback
     @app.callback(
         [
             dash.dependencies.Output("static-graph", "figure"),
@@ -525,6 +641,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print('Starting DashboarB 0.2.1')
+    print("Starting DashboarB 0.3.0")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
