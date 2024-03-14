@@ -232,7 +232,7 @@ def handle_balance_csv():
     df = df[~df["datetime"].str.contains("23:59")]
 
     # Calculate rolling one day sharpe ratio in df from total_usdt
-    df["daily_return"] = df["total_usdt"].pct_change()
+    df["hourly_return"] = df["total_usdt"].pct_change()
 
     # in_out_table['datetime'] = pd.to_datetime(in_out_table['datetime'], format='%Y/%m/%d %H:%M:%S')
     df["datetime"] = pd.to_datetime(df["datetime"], format="%d/%m/%Y %H:%M:%S")
@@ -246,16 +246,16 @@ def handle_balance_csv():
 
     df["datetime"] = pd.to_datetime(df["datetime"], format="%Y/%m/%D %H:%M:%S")
 
-    # If in_out_table has a datetime that is in df, change the df['daily_return'] to the average of the prev and next value
-    df["daily_return"] = df["daily_return"].where(
+    # If in_out_table has a datetime that is in df, change the df['hourly_return'] to the average of the prev and next value
+    df["hourly_return"] = df["hourly_return"].where(
         ~df["datetime"].isin(in_out_table["datetime"]),
-        (df["daily_return"].shift(1) + df["daily_return"].shift(-1)) / 2,
+        (df["hourly_return"].shift(1) + df["hourly_return"].shift(-1)) / 2,
     )
 
     # Calculate rolling single day Sharpe ratio - 24 hours
     df["sharpe_ratio"] = (
-        df["daily_return"].rolling(window=24).mean()
-        / df["daily_return"].rolling(window=24).std()
+        df["hourly_return"].rolling(window=24).mean()
+        / df["hourly_return"].rolling(window=24).std()
     )
     # Annualize the sharpe ratio
     df["sharpe_ratio"] = df["sharpe_ratio"] * np.sqrt(24 * 365)
@@ -266,6 +266,9 @@ def handle_balance_csv():
     df["free_pct"] = (df["spot_margin"] + df["future_margin"]) / (
         df["spot_usdt"] + df["future_usdt"]
     )
+
+    # Annualised vol of hourly_return with expanding
+    df["vol"] = df["hourly_return"].expanding().std() * np.sqrt(24 * 365)
 
     return df
 
@@ -451,6 +454,10 @@ def run_dash():
                     # Add text here
                     html.Div(
                         [
+                            html.P(
+                                "Annualized vol, expanding, full time series: "
+                                + str(round(df["vol"].iloc[-1], 10))
+                            ),
                             html.P("Deposits and Withdrawals"),
                         ],
                         style={
