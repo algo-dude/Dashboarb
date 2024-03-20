@@ -8,3 +8,5 @@ Contents would be as follows:
         "pnlLookback": 30
     }
 }
+
+AI made the logo.  It's lame, I know.
