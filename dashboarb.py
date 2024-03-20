@@ -270,6 +270,19 @@ def handle_balance_csv():
     # Annualised vol of hourly_return with expanding
     df["vol"] = df["hourly_return"].expanding().std() * np.sqrt(24 * 365)
 
+    # Annualized sharpe of hourly_return, expanding
+    df['sharpe'] = df['hourly_return'].expanding().mean() / df['hourly_return'].expanding().std() * np.sqrt(24 * 365)
+
+
+    # Daily pct returns
+    # Make index temporarily from datetime
+    df.set_index("datetime", inplace=True)
+    df['daily_return'] = df['hourly_return'].resample('D').sum()
+    # convert to bips
+    df['daily_return'] = df['daily_return'] * 10000
+    # Revet index back to previous
+    df.reset_index(inplace=True)
+
     return df
 
 
@@ -377,13 +390,32 @@ def plot_balance(df, in_out):
         template="plotly_dark",
     )
 
+    # Make a smaller df for the daily returns where it only keeps the nonnull values
+    returns = go.Figure()
+    returns_df = df[df["daily_return"].notnull()]
+    returns.add_trace(
+        go.Scatter(x=returns_df["datetime"], y=returns_df["daily_return"], mode="markers")
+    )
+    
+    returns.update_layout(
+        title="Daily Returns, bips",
+        xaxis_title="Datetime",
+        yaxis_title="Return",
+        height = 250,
+        margin=dict(l=20, r=20, t=40, b=40),
+        template="plotly_dark",
+    )
+
+        
+
+
     # Deposit / Withdraw table
     in_out = ff.create_table(in_out)
     in_out.update_layout(
         template="plotly_dark",
     )
-
-    return balance, sharpe, in_out
+    
+    return balance, sharpe, returns, in_out
 
 
 def run_dash():
@@ -437,7 +469,7 @@ def run_dash():
     # Create the balance and sharpe ratio modal and plot
     df = handle_balance_csv()
     in_out = handle_in_out_csv()
-    balance, sharpe, in_out_table = plot_balance(df, in_out)
+    balance, sharpe, returns, in_out_table = plot_balance(df, in_out)
 
     modal = dbc.Modal(
         [
@@ -448,12 +480,17 @@ def run_dash():
                         [
                             dcc.Graph(id="balance-graph", style={"width": "90%"}),
                             dcc.Graph(id="sharpe-graph", style={"width": "90%"}),
+                            dcc.Graph(id="returns-graph", style={"width": "90%"}),
                         ],
                         style={"margin-bottom": "20px"},
                     ),
                     # Add text here
                     html.Div(
                         [
+                            html.P(
+                                "Annualized Sharpe, expanding, full time series: "
+                                + str(round(df["sharpe"].iloc[-1], 2))
+                            ),
                             html.P(
                                 "Annualized vol, expanding, full time series: "
                                 + str(round(df["vol"].iloc[-1], 10))
@@ -502,6 +539,7 @@ def run_dash():
         [
             dash.dependencies.Output("balance-graph", "figure"),
             dash.dependencies.Output("sharpe-graph", "figure"),
+            dash.dependencies.Output("returns-graph", "figure"),
             dash.dependencies.Output("in_out-table", "figure"),
         ],
         [dash.dependencies.Input("modal", "is_open")],
@@ -510,9 +548,9 @@ def run_dash():
         if is_open:
             df = handle_balance_csv()
             in_out = handle_in_out_csv()
-            balance, sharpe, in_out_table = plot_balance(df, in_out)
-            return balance, sharpe, in_out_table
-        return dash.no_update, dash.no_update, dash.no_update
+            balance, sharpe, returns, in_out_table = plot_balance(df, in_out)
+            return balance, sharpe, returns, in_out_table
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     img = "assets/logo.png"
     app.layout = html.Div(
@@ -642,6 +680,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.3.1")
+    print("Starting DashboarB 0.4.0")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
