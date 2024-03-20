@@ -1,4 +1,4 @@
-'dashboarb_config.json' is not tracked.
+`dashboarb_config.json` is not tracked.
 Contents would be as follows:
 ```
 {
