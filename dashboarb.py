@@ -1,4 +1,5 @@
 import os
+import yfinance as yf
 import plotly.graph_objects as go
 import plotly.express as px
 import plotly.figure_factory as ff
@@ -150,6 +151,19 @@ def handle_json_trade_output(filepath):
     return df, buy_df, sell_df
 
 
+def get_btc_volatility():
+    btc = yf.Ticker("BTC-USD")
+    btc_hist = btc.history(
+        period="1d",
+        start="2024-01-01",
+        end=datetime.datetime.today().strftime("%Y-%m-%d"),
+    )
+    btc_hist["range_pct"] = round(
+        (btc_hist["High"] - btc_hist["Low"]) / btc_hist["Close"] * 100, 2
+    )
+    return btc_hist
+
+
 def plot_bar_chart(roe_dict, num):
     roe_dict = dict(sorted(roe_dict.items(), key=lambda item: item[1]))
     top_vals = dict(list(roe_dict.items())[-num:])
@@ -271,15 +285,18 @@ def handle_balance_csv():
     df["vol"] = df["hourly_return"].expanding().std() * np.sqrt(24 * 365)
 
     # Annualized sharpe of hourly_return, expanding
-    df['sharpe'] = df['hourly_return'].expanding().mean() / df['hourly_return'].expanding().std() * np.sqrt(24 * 365)
-
+    df["sharpe"] = (
+        df["hourly_return"].expanding().mean()
+        / df["hourly_return"].expanding().std()
+        * np.sqrt(24 * 365)
+    )
 
     # Daily pct returns
     # Make index temporarily from datetime
     df.set_index("datetime", inplace=True)
-    df['daily_return'] = df['hourly_return'].resample('D').sum()
+    df["daily_return"] = df["hourly_return"].resample("D").sum()
     # convert to bips
-    df['daily_return'] = df['daily_return'] * 10000
+    df["daily_return"] = df["daily_return"] * 10000
     # Revet index back to previous
     df.reset_index(inplace=True)
 
@@ -293,6 +310,28 @@ def handle_in_out_csv():
     df["datetime"] = pd.to_datetime(df["datetime"], format="%Y/%m/%d %H:%M:%S")
 
     return df
+
+
+def add_btc_vol(base, master):
+
+    master["datetime"] = pd.to_datetime(master["datetime"])
+
+    # Add BTC volatility to the df so we can also plot it for correlation
+    btc_hist = get_btc_volatility()
+    # Drop hours from history since returns_df only has days
+    btc_hist.index = btc_hist.index.date
+    # Filter btc_hist using Timestamp objects
+    btc_hist = btc_hist[btc_hist.index.isin(master["datetime"].dt.date)]
+    # Add btc_hist['range_pct'] to df
+    btc_hist["range_pct"].index = pd.to_datetime(btc_hist["range_pct"].index)
+
+    # Merge returns_df with btc_hist['range_pct']
+    base = base.merge(
+        btc_hist["range_pct"], left_on="datetime", right_index=True, how="left"
+    )
+    base.rename(columns={"range_pct": "btc_range_pct"}, inplace=True)
+
+    return base
 
 
 def plot_balance(df, in_out):
@@ -391,30 +430,52 @@ def plot_balance(df, in_out):
     )
 
     # Make a smaller df for the daily returns where it only keeps the nonnull values
-    returns = go.Figure()
     returns_df = df[df["daily_return"].notnull()]
+    returns_df = add_btc_vol(returns_df, df)
+
+    returns = make_subplots(specs=[[{"secondary_y": True}]])
+
     returns.add_trace(
-        go.Scatter(x=returns_df["datetime"], y=returns_df["daily_return"], mode="markers")
+        go.Scatter(
+            x=returns_df["datetime"],
+            y=returns_df["daily_return"],
+            mode="markers",
+            name="Daily Returns, bips",
+        )
     )
-    
+
+    returns.add_trace(
+        go.Scatter(
+            x=returns_df["datetime"],
+            y=returns_df["btc_range_pct"],
+            mode="lines",
+            line=dict(color="teal", width=2),
+            opacity=0.5,
+            name="BTC Volatility",
+        ),
+        secondary_y=True,
+    )
+
     returns.update_layout(
-        title="Daily Returns, bips",
+        title="Daily Returns and BTC Volatility",
         xaxis_title="Datetime",
         yaxis_title="Return",
-        height = 250,
+        yaxis2_title="BTC Trading Range Pct",
+        height=300,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
-        
-
+    # Update secondary y-axis properties
+    returns.update_yaxes(showgrid=False, secondary_y=True)
 
     # Deposit / Withdraw table
     in_out = ff.create_table(in_out)
     in_out.update_layout(
         template="plotly_dark",
     )
-    
+
     return balance, sharpe, returns, in_out
 
 
@@ -680,6 +741,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.0")
+    print("Starting DashboarB 0.4.2")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
