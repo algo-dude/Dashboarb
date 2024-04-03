@@ -752,6 +752,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.2")
+    print("Starting DashboarB 0.4.3")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
