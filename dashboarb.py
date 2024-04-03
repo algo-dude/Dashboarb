@@ -291,6 +291,13 @@ def handle_balance_csv():
         * np.sqrt(24 * 365)
     )
 
+    # Annualized sortino of hourly_return, expanding
+    df["sortino"] = (
+        df["hourly_return"].expanding().mean()
+        / df["hourly_return"][df["hourly_return"] < 0].expanding().std()
+        * np.sqrt(24 * 365)
+    )
+
     # Daily pct returns
     # Make index temporarily from datetime
     df.set_index("datetime", inplace=True)
@@ -551,6 +558,10 @@ def run_dash():
                             html.P(
                                 "Annualized Sharpe, expanding, full time series: "
                                 + str(round(df["sharpe"].iloc[-1], 2))
+                            ),                            
+                            html.P(
+                                "Annualized Sortino, expanding, full time series: "
+                                + str(round(df["sortino"].iloc[-1], 2))
                             ),
                             html.P(
                                 "Annualized vol, expanding, full time series: "
