@@ -215,13 +215,8 @@ def get_totalRoe_dict(lookback=None):
                     sell_df["datetime"]
                     > datetime.datetime.now() - datetime.timedelta(days=lookback)
                 ]
-            sell_df["tradeProfit"] = (
-                (sell_df["sellPrice"] + sell_df["buyPrice"])
-                / 2
-                * sell_df["amount"]
-                * sell_df["totalRoe"]
-                / 100
-            )
+            sell_df["tradeProfit"] = sell_df['totalRoe']
+
             # Adjust the below line depending on folder structure
             # print(folder)
             totalRoe_dict[folder.split("_")[1].split("/")[0]] = sell_df[
