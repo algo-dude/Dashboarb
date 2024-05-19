@@ -107,6 +107,7 @@ def handle_json_trade_output(filepath):
         "symbol",
         "balance",
         "mstime",
+        "maxSpread"
     ]
     sold_columns = [
         "side",
@@ -122,6 +123,7 @@ def handle_json_trade_output(filepath):
         "symbol",
         "balance",
         "mstime",
+        "lastBuySpread"
     ]
 
     # buy_df is where df[0] == 'bought'
@@ -213,7 +215,13 @@ def get_totalRoe_dict(lookback=None):
                     sell_df["datetime"]
                     > datetime.datetime.now() - datetime.timedelta(days=lookback)
                 ]
-            sell_df["tradeProfit"] = sell_df['totalRoe']
+            sell_df["tradeProfit"] = (
+                (sell_df["sellPrice"] + sell_df["buyPrice"])
+                / 2
+                * sell_df["amount"]
+                * sell_df["totalRoe"]
+                / 100
+            )
             # Adjust the below line depending on folder structure
             # print(folder)
             totalRoe_dict[folder.split("_")[1].split("/")[0]] = sell_df[
@@ -285,12 +293,15 @@ def handle_balance_csv():
         * np.sqrt(24 * 365)
     )
 
+
     # Annualized sortino of hourly_return, expanding
     df["sortino"] = (
         df["hourly_return"].expanding().mean()
         / df["hourly_return"][df["hourly_return"] < 0].expanding().std()
         * np.sqrt(24 * 365)
     )
+    # Ffill because sortino is NaN when hourly_return is 0
+    df["sortino"].ffill(inplace=True)
 
     # Daily pct returns
     # Make index temporarily from datetime
@@ -746,6 +757,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.4")
+    print("Starting DashboarB 0.4.5")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
