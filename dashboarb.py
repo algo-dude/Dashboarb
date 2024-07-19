@@ -490,7 +490,7 @@ def plot_balance(df, in_out):
         title="Daily Returns and BTC Volatility",
         xaxis_title="Datetime",
         yaxis_title="Daily Return",
-        yaxis2_title="BTC Trading Range Pct / Normalized Volume",
+        yaxis2_title="BTC Trading Range Pct",
         height=300,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
