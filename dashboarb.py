@@ -595,6 +595,16 @@ def run_dash():
                                 "Annualized vol, expanding, full time series: "
                                 + str(round(df["vol"].iloc[-1], 10))
                             ),
+                            html.P(
+                                "Winning days: "
+                                + str(df[df["daily_return"] > 0].shape[0])
+                                + " |  Losing days: "
+                                + str(df[df["daily_return"] < 0].shape[0])
+                                + " |  Ratio: "
+                                + str(
+                                    df[df["daily_return"] > 0].shape[0]
+                                    / df[df["daily_return"] < 0].shape[0])
+                            ),
                             html.P("Deposits and Withdrawals"),
                         ],
                         style={
@@ -780,6 +790,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.6")
+    print("Starting DashboarB 0.4.7")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
