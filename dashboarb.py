@@ -320,7 +320,6 @@ def handle_in_out_csv():
 
 
 def add_btc_vol(base, master):
-
     master["datetime"] = pd.to_datetime(master["datetime"])
 
     # Add BTC volatility to the df so we can also plot it for correlation
@@ -329,12 +328,13 @@ def add_btc_vol(base, master):
     btc_hist.index = btc_hist.index.date
     # Filter btc_hist using Timestamp objects
     btc_hist = btc_hist[btc_hist.index.isin(master["datetime"].dt.date)]
-    # Add btc_hist['range_pct'] to df
-    btc_hist["range_pct"].index = pd.to_datetime(btc_hist["range_pct"].index)
+    # Prepare btc_hist with 'range_pct' and 'Volume'
+    btc_hist_for_merge = btc_hist[['range_pct', 'Volume']]
+    btc_hist_for_merge.index = pd.to_datetime(btc_hist_for_merge.index)
 
-    # Merge returns_df with btc_hist['range_pct']
+    # Merge returns_df with btc_hist_for_merge
     base = base.merge(
-        btc_hist["range_pct"], left_on="datetime", right_index=True, how="left"
+        btc_hist_for_merge, left_on="datetime", right_index=True, how="left"
     )
     base.rename(columns={"range_pct": "btc_range_pct"}, inplace=True)
 
@@ -440,42 +440,70 @@ def plot_balance(df, in_out):
     returns_df = df[df["daily_return"].notnull()]
     returns_df = add_btc_vol(returns_df, df)
 
+    # Normalize volume within the bounds of BTC volatility
+    min_btc = returns_df["btc_range_pct"].min()
+    max_btc = returns_df["btc_range_pct"].max()
+    returns_df["normalized_volume"] = np.interp(returns_df["Volume"], 
+                                                (returns_df["Volume"].min(), returns_df["Volume"].max()), 
+                                                (min_btc, max_btc))
+
     returns = make_subplots(specs=[[{"secondary_y": True}]])
 
+    # Add daily returns on primary y-axis
     returns.add_trace(
         go.Scatter(
             x=returns_df["datetime"],
             y=returns_df["daily_return"],
             mode="markers",
             name="Daily Returns, bips",
-        )
+        ),
+        secondary_y=False
     )
 
+    # Add BTC volatility on secondary y-axis
     returns.add_trace(
         go.Scatter(
             x=returns_df["datetime"],
             y=returns_df["btc_range_pct"],
             mode="lines",
             line=dict(color="teal", width=2),
-            opacity=0.5,
+            opacity=0.8,
             name="BTC Volatility",
         ),
-        secondary_y=True,
+        secondary_y=True
+    )
+
+    # Add normalized volume on secondary y-axis
+    returns.add_trace(
+        go.Bar(
+            x=returns_df["datetime"],
+            y=returns_df["normalized_volume"],
+            name="Normalized Volume",
+            marker=dict(color="lightgray"),
+            opacity=0.15,
+            hoverinfo="skip",
+        ),
+        secondary_y=True
     )
 
     returns.update_layout(
         title="Daily Returns and BTC Volatility",
         xaxis_title="Datetime",
-        yaxis_title="Return",
-        yaxis2_title="BTC Trading Range Pct",
+        yaxis_title="Daily Return",
+        yaxis2_title="BTC Trading Range Pct / Normalized Volume",
         height=300,
         margin=dict(l=20, r=20, t=40, b=40),
         template="plotly_dark",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
-    # Update secondary y-axis properties
+    # Update y-axis properties
     returns.update_yaxes(showgrid=False, secondary_y=True)
+
+    # Set y-axis ranges
+    returns.update_yaxes(range=[returns_df["daily_return"].min(), returns_df["daily_return"].max()], secondary_y=False)
+    returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
+
 
     # Deposit / Withdraw table
     in_out = ff.create_table(in_out)
@@ -752,6 +780,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.5")
+    print("Starting DashboarB 0.4.6")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
