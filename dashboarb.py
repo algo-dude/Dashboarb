@@ -107,7 +107,7 @@ def handle_json_trade_output(filepath):
         "symbol",
         "balance",
         "mstime",
-        "maxSpread"
+        "maxSpread",
     ]
     sold_columns = [
         "side",
@@ -123,7 +123,7 @@ def handle_json_trade_output(filepath):
         "symbol",
         "balance",
         "mstime",
-        "lastBuySpread"
+        "lastBuySpread",
     ]
 
     # buy_df is where df[0] == 'bought'
@@ -215,7 +215,7 @@ def get_totalRoe_dict(lookback=None):
                     sell_df["datetime"]
                     > datetime.datetime.now() - datetime.timedelta(days=lookback)
                 ]
-            sell_df["tradeProfit"] = sell_df['totalRoe']
+            sell_df["tradeProfit"] = sell_df["totalRoe"]
 
             # Adjust the below line depending on folder structure
             # print(folder)
@@ -288,7 +288,6 @@ def handle_balance_csv():
         * np.sqrt(24 * 365)
     )
 
-
     # Annualized sortino of hourly_return, expanding
     df["sortino"] = (
         df["hourly_return"].expanding().mean()
@@ -329,7 +328,7 @@ def add_btc_vol(base, master):
     # Filter btc_hist using Timestamp objects
     btc_hist = btc_hist[btc_hist.index.isin(master["datetime"].dt.date)]
     # Prepare btc_hist with 'range_pct' and 'Volume'
-    btc_hist_for_merge = btc_hist[['range_pct', 'Volume']]
+    btc_hist_for_merge = btc_hist[["range_pct", "Volume"]]
     btc_hist_for_merge.index = pd.to_datetime(btc_hist_for_merge.index)
 
     # Merge returns_df with btc_hist_for_merge
@@ -443,9 +442,11 @@ def plot_balance(df, in_out):
     # Normalize volume within the bounds of BTC volatility
     min_btc = returns_df["btc_range_pct"].min()
     max_btc = returns_df["btc_range_pct"].max()
-    returns_df["normalized_volume"] = np.interp(returns_df["Volume"], 
-                                                (returns_df["Volume"].min(), returns_df["Volume"].max()), 
-                                                (min_btc, max_btc))
+    returns_df["normalized_volume"] = np.interp(
+        returns_df["Volume"],
+        (returns_df["Volume"].min(), returns_df["Volume"].max()),
+        (min_btc, max_btc),
+    )
 
     returns = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -457,7 +458,7 @@ def plot_balance(df, in_out):
             mode="markers",
             name="Daily Returns, bips",
         ),
-        secondary_y=False
+        secondary_y=False,
     )
 
     # Add BTC volatility on secondary y-axis
@@ -470,7 +471,7 @@ def plot_balance(df, in_out):
             opacity=0.8,
             name="BTC Volatility",
         ),
-        secondary_y=True
+        secondary_y=True,
     )
 
     # Add normalized volume on secondary y-axis
@@ -483,7 +484,7 @@ def plot_balance(df, in_out):
             opacity=0.15,
             hoverinfo="skip",
         ),
-        secondary_y=True
+        secondary_y=True,
     )
 
     returns.update_layout(
@@ -501,9 +502,11 @@ def plot_balance(df, in_out):
     returns.update_yaxes(showgrid=False, secondary_y=True)
 
     # Set y-axis ranges
-    returns.update_yaxes(range=[returns_df["daily_return"].min(), returns_df["daily_return"].max()], secondary_y=False)
+    returns.update_yaxes(
+        range=[returns_df["daily_return"].min(), returns_df["daily_return"].max()],
+        secondary_y=False,
+    )
     returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
-
 
     # Deposit / Withdraw table
     in_out = ff.create_table(in_out)
@@ -586,7 +589,7 @@ def run_dash():
                             html.P(
                                 "Annualized Sharpe, expanding, full time series: "
                                 + str(round(df["sharpe"].iloc[-1], 2))
-                            ),                            
+                            ),
                             html.P(
                                 "Annualized Sortino, expanding, full time series: "
                                 + str(round(df["sortino"].iloc[-1], 2))
@@ -603,7 +606,8 @@ def run_dash():
                                 + " |  Ratio: "
                                 + str(
                                     df[df["daily_return"] > 0].shape[0]
-                                    / df[df["daily_return"] < 0].shape[0])
+                                    / df[df["daily_return"] < 0].shape[0]
+                                )
                             ),
                             html.P("Deposits and Withdrawals"),
                         ],
