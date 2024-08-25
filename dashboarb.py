@@ -190,13 +190,25 @@ def plot_bar_chart(roe_dict, num):
 
 def get_json_files_list(name):
     import os
-    import glob
+
+    def count_lines(file_path):
+        with open(file_path, 'r') as file:
+            return sum(1 for _ in file)
 
     json_files_list = []
     for root, dirs, files in os.walk(dc.masterFolder):
         for file in files:
             if file == name:
                 json_files_list.append(os.path.join(root, file))
+    
+    # Sort the list by the number of lines in each file
+    json_files_list.sort(key=count_lines, reverse=True)
+
+    # Print the sorted list with the number of lines in each file
+    for file_path in json_files_list:
+        num_lines = count_lines(file_path)
+        print(f'{file_path} ({num_lines} lines)')
+
     return json_files_list
 
 
@@ -219,7 +231,7 @@ def get_totalRoe_dict(lookback=None):
 
             # Adjust the below line depending on folder structure
             # print(folder)
-            totalRoe_dict[folder.split("_")[1].split("/")[0]] = sell_df[
+            totalRoe_dict[folder.split("_")[-2].split("/")[0]] = sell_df[
                 "tradeProfit"
             ].sum()
         except Exception as e:
@@ -608,6 +620,8 @@ def run_dash():
                                     df[df["daily_return"] > 0].shape[0]
                                     / df[df["daily_return"] < 0].shape[0]
                                 )
+                                if df[df["daily_return"] < 0].shape[0] > 1
+                                else "n/a"
                             ),
                             html.P("Deposits and Withdrawals"),
                         ],
@@ -794,6 +808,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.7")
+    print("Starting DashboarB 0.4.8")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
