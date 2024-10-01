@@ -153,17 +153,33 @@ def handle_json_trade_output(filepath):
     return df, buy_df, sell_df
 
 
+
 def get_btc_volatility():
-    btc = yf.Ticker("BTC-USD")
-    btc_hist = btc.history(
-        period="1d",
-        start="2024-01-01",
-        end=datetime.datetime.today().strftime("%Y-%m-%d"),
-    )
-    btc_hist["range_pct"] = round(
-        (btc_hist["High"] - btc_hist["Low"]) / btc_hist["Close"] * 100, 2
-    )
-    return btc_hist
+    try:
+        btc = yf.Ticker("BTC-USD")
+        btc_hist = btc.history(
+            period="1d",
+            start=(datetime.datetime.now() - datetime.timedelta(days=365)).strftime("%Y-%m-%d"),
+            end=datetime.datetime.now().strftime("%Y-%m-%d"),
+        )
+        if btc_hist.empty:
+            raise ValueError("No data fetched for BTC-USD")
+        btc_hist["range_pct"] = round(
+            (btc_hist["High"] - btc_hist["Low"]) / btc_hist["Close"] * 100, 2
+        )
+        return btc_hist
+    except Exception as e:
+        print(f"Error fetching BTC data: {e}")
+        # Return a dummy DataFrame with the expected structure
+        dummy_data = {
+            'Open': [0],
+            'High': [0],
+            'Low': [0],
+            'Close': [0],
+            'Volume': [0],
+            'range_pct': [0]
+        }
+        return pd.DataFrame(dummy_data, index=[datetime.datetime.now()])
 
 
 def plot_bar_chart(roe_dict, num):
@@ -352,8 +368,7 @@ def add_btc_vol(base, master):
     return base
 
 
-def plot_balance(df, in_out):
-
+def plot_balance(df, in_out):    
     # Plot the balance
     balance = go.Figure()
 
@@ -361,13 +376,6 @@ def plot_balance(df, in_out):
     balance.add_trace(
         go.Scatter(x=df["datetime"], y=df["total_usdt"], mode="lines", name="USDT")
     )
-
-    # TODO - This is too cluttered.  Unsure if we want it anywhere.  Maybe in another modal.
-    # Add free_pct trace
-    # balance.add_trace(
-    #     go.Scatter(x=df["datetime"], y=df["free_pct"].round(2), mode="lines", name="Free %", yaxis="y2")
-    # )
-    # balance.data[1].update(opacity=0.1)
 
     # Update layout
     balance.update_layout(
@@ -384,7 +392,7 @@ def plot_balance(df, in_out):
         template="plotly_dark",
     )
 
-    # This makes the bullet show on the preceeding hour before the balance change
+    # This makes the bullet show on the preceding hour before the balance change
     in_out["datetime"] = in_out["datetime"].dt.floor("h")
 
     # Add red dots to the balance graph for every datetime in in_out
@@ -520,13 +528,38 @@ def plot_balance(df, in_out):
     )
     returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
 
+        # Calculate Time-Weighted Equity (TWEQ)
+    returns_df['TWEQ'] = (1 + returns_df['daily_return'] / 1000).cumprod()
+
+    # Plot TWEQ
+    tweq = go.Figure()
+    tweq.add_trace(
+        go.Scatter(
+            x=returns_df["datetime"],
+            y=returns_df["TWEQ"],
+            mode="lines",
+            name="Time-Weighted Equity",
+        )
+    )
+    tweq.update_layout(
+        title="Time-Weighted Equity (TWEQ) of $1",
+        xaxis_title="Datetime",
+        yaxis_title="TWEQ",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(rangeslider=dict(visible=False), showticklabels=False),
+        yaxis=dict(fixedrange=False),
+        height=200,
+        margin=dict(l=20, r=20, t=40, b=40),
+        template="plotly_dark",
+    )
+
     # Deposit / Withdraw table
     in_out = ff.create_table(in_out)
     in_out.update_layout(
         template="plotly_dark",
     )
 
-    return balance, sharpe, returns, in_out
+    return balance, sharpe, returns, tweq, in_out
 
 
 def run_dash():
@@ -580,7 +613,7 @@ def run_dash():
     # Create the balance and sharpe ratio modal and plot
     df = handle_balance_csv()
     in_out = handle_in_out_csv()
-    balance, sharpe, returns, in_out_table = plot_balance(df, in_out)
+    balance, sharpe, returns, tweq, in_out_table = plot_balance(df, in_out)
 
     modal = dbc.Modal(
         [
@@ -592,6 +625,7 @@ def run_dash():
                             dcc.Graph(id="balance-graph", style={"width": "90%"}),
                             dcc.Graph(id="sharpe-graph", style={"width": "90%"}),
                             dcc.Graph(id="returns-graph", style={"width": "90%"}),
+                            dcc.Graph(id="tweq-graph", style={"width": "90%"}),
                         ],
                         style={"margin-bottom": "20px"},
                     ),
@@ -668,6 +702,7 @@ def run_dash():
             dash.dependencies.Output("balance-graph", "figure"),
             dash.dependencies.Output("sharpe-graph", "figure"),
             dash.dependencies.Output("returns-graph", "figure"),
+            dash.dependencies.Output("tweq-graph", "figure"),
             dash.dependencies.Output("in_out-table", "figure"),
         ],
         [dash.dependencies.Input("modal", "is_open")],
@@ -676,9 +711,9 @@ def run_dash():
         if is_open:
             df = handle_balance_csv()
             in_out = handle_in_out_csv()
-            balance, sharpe, returns, in_out_table = plot_balance(df, in_out)
-            return balance, sharpe, returns, in_out_table
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            balance, sharpe, returns, tweq, in_out_table = plot_balance(df, in_out)
+            return balance, sharpe, returns, tweq, in_out_table
+        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     img = "assets/logo.png"
     app.layout = html.Div(
@@ -808,6 +843,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.4.8")
+    print("Starting DashboarB 0.4.9")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
