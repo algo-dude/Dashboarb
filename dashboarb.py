@@ -529,7 +529,7 @@ def plot_balance(df, in_out):
     returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
 
         # Calculate Time-Weighted Equity (TWEQ)
-    returns_df['TWEQ'] = (1 + returns_df['daily_return'] / 1000).cumprod()
+    returns_df['TWEQ'] = (1 + returns_df['daily_return'] / 10000).cumprod()
 
     # Plot TWEQ
     tweq = go.Figure()
