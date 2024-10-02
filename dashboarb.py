@@ -656,6 +656,8 @@ def run_dash():
                                 )
                                 if df[df["daily_return"] < 0].shape[0] > 1
                                 else "n/a"
+                                + " | Average daily return, bips: "
+                                + str(round(df["daily_return"].mean(), 2))
                             ),
                             html.P("Deposits and Withdrawals"),
                         ],
