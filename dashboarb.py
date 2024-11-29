@@ -153,13 +153,14 @@ def handle_json_trade_output(filepath):
     return df, buy_df, sell_df
 
 
-
 def get_btc_volatility():
     try:
         btc = yf.Ticker("BTC-USD")
         btc_hist = btc.history(
             period="1d",
-            start=(datetime.datetime.now() - datetime.timedelta(days=365)).strftime("%Y-%m-%d"),
+            start=(datetime.datetime.now() - datetime.timedelta(days=365)).strftime(
+                "%Y-%m-%d"
+            ),
             end=datetime.datetime.now().strftime("%Y-%m-%d"),
         )
         if btc_hist.empty:
@@ -172,12 +173,12 @@ def get_btc_volatility():
         print(f"Error fetching BTC data: {e}")
         # Return a dummy DataFrame with the expected structure
         dummy_data = {
-            'Open': [0],
-            'High': [0],
-            'Low': [0],
-            'Close': [0],
-            'Volume': [0],
-            'range_pct': [0]
+            "Open": [0],
+            "High": [0],
+            "Low": [0],
+            "Close": [0],
+            "Volume": [0],
+            "range_pct": [0],
         }
         return pd.DataFrame(dummy_data, index=[datetime.datetime.now()])
 
@@ -208,7 +209,7 @@ def get_json_files_list(name):
     import os
 
     def count_lines(file_path):
-        with open(file_path, 'r') as file:
+        with open(file_path, "r") as file:
             return sum(1 for _ in file)
 
     json_files_list = []
@@ -216,14 +217,14 @@ def get_json_files_list(name):
         for file in files:
             if file == name:
                 json_files_list.append(os.path.join(root, file))
-    
+
     # Sort the list by the number of lines in each file
     json_files_list.sort(key=count_lines, reverse=True)
 
     # Print the sorted list with the number of lines in each file
     for file_path in json_files_list:
         num_lines = count_lines(file_path)
-        print(f'{file_path} ({num_lines} lines)')
+        print(f"{file_path} ({num_lines} lines)")
 
     return json_files_list
 
@@ -368,7 +369,7 @@ def add_btc_vol(base, master):
     return base
 
 
-def plot_balance(df, in_out):    
+def plot_balance(df, in_out):
     # Plot the balance
     balance = go.Figure()
 
@@ -528,8 +529,8 @@ def plot_balance(df, in_out):
     )
     returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
 
-        # Calculate Time-Weighted Equity (TWEQ)
-    returns_df['TWEQ'] = (1 + returns_df['daily_return'] / 10000).cumprod()
+    # Calculate Time-Weighted Equity (TWEQ)
+    returns_df["TWEQ"] = (1 + returns_df["daily_return"] / 10000).cumprod()
 
     # Plot TWEQ
     tweq = go.Figure()
@@ -715,7 +716,13 @@ def run_dash():
             in_out = handle_in_out_csv()
             balance, sharpe, returns, tweq, in_out_table = plot_balance(df, in_out)
             return balance, sharpe, returns, tweq, in_out_table
-        return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        return (
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+            dash.no_update,
+        )
 
     img = "assets/logo.png"
     app.layout = html.Div(
