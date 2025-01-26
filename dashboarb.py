@@ -650,13 +650,16 @@ def run_dash():
                                 + str(df[df["daily_return"] > 0].shape[0])
                                 + " |  Losing days: "
                                 + str(df[df["daily_return"] < 0].shape[0])
-                                + " |  Ratio: "
-                                + str(
-                                    df[df["daily_return"] > 0].shape[0]
-                                    / df[df["daily_return"] < 0].shape[0]
+                                + " | Ratio: "
+                                + (
+                                    str(round(
+                                        df[df["daily_return"] > 0].shape[0]
+                                        / df[df["daily_return"] < 0].shape[0], 
+                                        2
+                                    ))
+                                    if df[df["daily_return"] < 0].shape[0] > 1
+                                    else "n/a"
                                 )
-                                if df[df["daily_return"] < 0].shape[0] > 1
-                                else "n/a"
                                 + " | Average daily return, bips: "
                                 + str(round(df["daily_return"].mean(), 2))
                             ),
@@ -852,6 +855,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.5.0")
+    print("Starting DashboarB 0.5.1")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
