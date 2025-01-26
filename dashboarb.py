@@ -460,14 +460,6 @@ def plot_balance(df, in_out):
     returns_df = df[df["daily_return"].notnull()]
     returns_df = add_btc_vol(returns_df, df)
 
-    # Normalize volume within the bounds of BTC volatility
-    min_btc = returns_df["btc_range_pct"].min()
-    max_btc = returns_df["btc_range_pct"].max()
-    returns_df["normalized_volume"] = np.interp(
-        returns_df["Volume"],
-        (returns_df["Volume"].min(), returns_df["Volume"].max()),
-        (min_btc, max_btc),
-    )
 
     returns = make_subplots(specs=[[{"secondary_y": True}]])
 
@@ -489,21 +481,8 @@ def plot_balance(df, in_out):
             y=returns_df["btc_range_pct"],
             mode="lines",
             line=dict(color="teal", width=2),
-            opacity=0.8,
+            opacity=0.5,
             name="BTC Volatility",
-        ),
-        secondary_y=True,
-    )
-
-    # Add normalized volume on secondary y-axis
-    returns.add_trace(
-        go.Bar(
-            x=returns_df["datetime"],
-            y=returns_df["normalized_volume"],
-            name="Normalized Volume",
-            marker=dict(color="lightgray"),
-            opacity=0.15,
-            hoverinfo="skip",
         ),
         secondary_y=True,
     )
@@ -527,7 +506,7 @@ def plot_balance(df, in_out):
         range=[returns_df["daily_return"].min(), returns_df["daily_return"].max()],
         secondary_y=False,
     )
-    returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
+    # returns.update_yaxes(range=[min_btc, max_btc], secondary_y=True)
 
     # Calculate Time-Weighted Equity (TWEQ)
     returns_df["TWEQ"] = (1 + returns_df["daily_return"] / 10000).cumprod()
@@ -855,6 +834,6 @@ def run_dash():
 
 # Run the app
 if __name__ == "__main__":
-    print("Starting DashboarB 0.5.1")
+    print("Starting DashboarB 0.5.2")
     app = run_dash()
     app.run_server(debug=True, host="0.0.0.0")
