@@ -460,6 +460,8 @@ def plot_balance(df, in_out):
     returns_df = df[df["daily_return"].notnull()]
     returns_df = add_btc_vol(returns_df, df)
 
+    # Write returns_df to csv
+    returns_df.to_csv("returns_df.csv")
 
     returns = make_subplots(specs=[[{"secondary_y": True}]])
 
